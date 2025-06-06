@@ -101,16 +101,16 @@ pub fn update_boids(state: &mut MainState) {
             next_vel += close_offset * state.avoid_factor;
 
             // Turn if approaching the edge of the screen
-            if boid.pos.y > (state.height - state.margin) as f32 {
+            if boid.pos.y > (state.height - state.margin) {
                 next_vel.y -= state.turn_factor;
             }
-            if boid.pos.x > (state.width - state.margin) as f32 {
+            if boid.pos.x > (state.width - state.margin) {
                 next_vel.x -= state.turn_factor;
             }
-            if boid.pos.x < state.margin as f32 {
+            if boid.pos.x < state.margin {
                 next_vel.x += state.turn_factor;
             }
-            if boid.pos.y < state.margin as f32 {
+            if boid.pos.y < state.margin {
                 next_vel.y += state.turn_factor;
             }
 
