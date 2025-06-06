@@ -7,7 +7,7 @@ use rayon::prelude::*;
 
 use crate::state::MainState;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub struct Boid {
     id: usize,
     pub pos: Vec2,
@@ -72,10 +72,8 @@ pub fn update_boids(state: &mut MainState) {
 
                                 let offset = boid.pos - otherboid.pos;
                                 // Only consider those within our visible box
-                                if offset.x.abs() < state.visible_range
-                                    && offset.y.abs() < state.visible_range
-                                {
-                                    let dist_sq = offset.length_squared();
+                                let dist_sq = offset.length_squared();
+                                if dist_sq < visible_range_squared {
                                     if dist_sq < protected_range_squared {
                                         close_offset += offset;
                                     } else if dist_sq < visible_range_squared {
@@ -136,17 +134,10 @@ pub fn update_boids(state: &mut MainState) {
             let mut next_pos = boid.pos + next_vel;
 
             // Finally, clamp them so they're in the screen
-            if next_pos.x < 0.0 {
-                next_pos.x = 0.0;
-            } else if next_pos.x >= state.width {
-                next_pos.x = state.width - 1.0;
-            }
-            if next_pos.y < 0.0 {
-                next_pos.y = 0.0;
-            } else if next_pos.y >= state.height {
-                next_pos.y = state.height - 1.0;
-            }
+            next_pos.x = next_pos.x.clamp(0.0, state.width - 1.0);
+            next_pos.y = next_pos.y.clamp(0.0, state.height - 1.0);
 
+            // Return the changes for this boid
             (next_pos, next_vel, speed)
         })
         .collect();
