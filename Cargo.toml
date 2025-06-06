@@ -1,0 +1,18 @@
+[package]
+name = "rboid"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+argh = "0.1.13"
+colors-transform = "0.2.11"
+ggez = "0.9.3"
+image = { version = "0.25.6", default-features = false, features = [
+    "png",
+    "serde",
+] }
+indicatif = "0.17.11"
+rand = "0.9.1"
+rayon = "1.10.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0.140"
