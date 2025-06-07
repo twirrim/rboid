@@ -14,16 +14,28 @@ pub struct Boid {
     vel: Vec2,
     current_speed: f32,
     pub colour: Color,
+    predator: bool,
+    alive: bool,
 }
 
 impl Boid {
-    pub fn new(id: usize, pos: Vec2, vel: Vec2, current_speed: f32, colour: Color) -> Self {
+    pub fn new(
+        id: usize,
+        pos: Vec2,
+        vel: Vec2,
+        current_speed: f32,
+        colour: Color,
+        predator: bool,
+        alive: bool,
+    ) -> Self {
         Boid {
             id,
             pos,
             vel,
             current_speed,
             colour,
+            predator,
+            alive,
         }
     }
 }
@@ -31,9 +43,11 @@ impl Boid {
 pub fn populate_grid(boids: &[Boid], cell_size: f32) -> HashMap<(u32, u32), Vec<usize>> {
     let mut grid: HashMap<(u32, u32), Vec<usize>> = HashMap::new();
     for (index, boid) in boids.iter().enumerate() {
-        let cell_x: u32 = (boid.pos.x / cell_size).floor() as u32;
-        let cell_y: u32 = (boid.pos.y / cell_size).floor() as u32;
-        grid.entry((cell_x, cell_y)).or_default().push(index);
+        if boid.alive {
+            let cell_x: u32 = (boid.pos.x / cell_size).floor() as u32;
+            let cell_y: u32 = (boid.pos.y / cell_size).floor() as u32;
+            grid.entry((cell_x, cell_y)).or_default().push(index);
+        }
     }
     grid
 }
@@ -43,7 +57,7 @@ pub fn update_boids(state: &mut MainState) {
     let visible_range_squared = state.visible_range * state.visible_range;
     let grid = populate_grid(&state.boids, state.cell_size);
 
-    let new_boid_states: Vec<(Vec2, Vec2, f32)> = state
+    let new_boid_states: Vec<(Vec2, Vec2, f32, bool)> = state
         .boids
         .par_iter()
         .enumerate()
@@ -53,33 +67,69 @@ pub fn update_boids(state: &mut MainState) {
             let mut vel_avg = Vec2::ZERO;
             let mut close_offset = Vec2::ZERO;
 
-            let mut neighboring_boids: usize = 0;
-
             let boid_cell_x: i32 = (boid.pos.x / state.cell_size).floor() as i32;
             let boid_cell_y: i32 = (boid.pos.y / state.cell_size).floor() as i32;
-            for x_offset in -1..=1 {
-                for y_offset in -1..=1 {
-                    let new_x = boid_cell_x + x_offset;
-                    let new_y = boid_cell_y + y_offset;
-                    if new_x >= 0 && new_y >= 0 {
-                        let key = (new_x as u32, new_y as u32);
-                        if let Some(near_boids) = grid.get(&key) {
-                            for otherboid_idx in near_boids {
-                                if *otherboid_idx == boid_idx {
-                                    continue;
-                                }
-                                let otherboid = &state.boids[*otherboid_idx];
 
-                                let offset = boid.pos - otherboid.pos;
-                                // Only consider those within our visible box
-                                let dist_sq = offset.length_squared();
-                                if dist_sq < visible_range_squared {
-                                    if dist_sq < protected_range_squared {
-                                        close_offset += offset;
-                                    } else if dist_sq < visible_range_squared {
-                                        pos_avg += otherboid.pos;
-                                        vel_avg += otherboid.vel;
-                                        neighboring_boids += 1;
+            if boid.predator {
+                // Find the nearest non-predator boid to chase
+                let mut nearest = Vec2::MAX;
+                for x_offset in -1..=1 {
+                    for y_offset in -1..=1 {
+                        let new_x = boid_cell_x + x_offset;
+                        let new_y = boid_cell_y + y_offset;
+                        if new_x >= 0 && new_y >= 0 {
+                            let key = (new_x as u32, new_y as u32);
+                            if let Some(near_boids) = grid.get(&key) {
+                                for otherboid_idx in near_boids {
+                                    if *otherboid_idx == boid_idx {
+                                        continue;
+                                    }
+                                    let otherboid = &state.boids[*otherboid_idx];
+                                    if otherboid.predator == false {
+                                        let offset = boid.pos - otherboid.pos;
+                                        let nearest_offset = nearest - boid.pos;
+                                        if offset.length() < nearest_offset.length() {
+                                            nearest = otherboid.pos;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                // Can I just use pos_avg, and share the movement code?
+                // I'm guessing the answer will be no.
+                pos_avg = nearest;
+            } else {
+                let mut neighboring_boids: usize = 0;
+                let mut predators: Vec<&usize> = vec![];
+                for x_offset in -1..=1 {
+                    for y_offset in -1..=1 {
+                        let new_x = boid_cell_x + x_offset;
+                        let new_y = boid_cell_y + y_offset;
+                        if new_x >= 0 && new_y >= 0 {
+                            let key = (new_x as u32, new_y as u32);
+                            if let Some(near_boids) = grid.get(&key) {
+                                for otherboid_idx in near_boids {
+                                    if *otherboid_idx == boid_idx {
+                                        continue;
+                                    }
+                                    let otherboid = &state.boids[*otherboid_idx];
+                                    if otherboid.predator {
+                                        predators.push(otherboid_idx);
+                                    } else {
+                                        let offset = boid.pos - otherboid.pos;
+                                        // Only consider those within our visible box
+                                        let dist_sq = offset.length_squared();
+                                        if dist_sq < visible_range_squared {
+                                            if dist_sq < protected_range_squared {
+                                                close_offset += offset;
+                                            } else if dist_sq < visible_range_squared {
+                                                pos_avg += otherboid.pos;
+                                                vel_avg += otherboid.vel;
+                                                neighboring_boids += 1;
+                                            }
+                                        }
                                     }
                                 }
                             }
